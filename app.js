@@ -2,13 +2,13 @@ import express from "express";
 import dotenv from "dotenv";
 import connectDB from "./src/db/dbConnect.js";
 import cors from "cors";
-import cookieParser from "cookie-parser";
+// import cookieParser from "cookie-parser";
 
 const app = express();
 
 // Ye .env file se tumhare environment variables ko load karega.
 dotenv.config();
-app.use(cors());
+// app.use(cors());
 
 //? Ye middleware JSON data ko read karne ke liye hai.
 // Jaise koi client tumhare backend ko POST request bheje jisme body JSON format mein ho, to backend ko samajhne ke liye ye zaroori hai.
@@ -29,8 +29,24 @@ app.use(express.urlencoded({
 
 // Static files serve karta hai
 app.use(express.static("public"));
+
 // Cookies read karta hai
-app.use(cookieParser);
+// app.use(cookieParser);
+
+//Router
+import userRouter from "./src/routes/user.routes.js"
+
+app.use("/api/v1/users", userRouter);
+//http://localhost:8080/api/v1/users/register
+
+
+
+
+
+
+
+
+
 
 
 /*Connect with Databse*/
