@@ -53,11 +53,12 @@ const userSchema = new Schema(
   }
 );
 
-//Arrow function ke sath this a refernce nhi aata hai
-//Userschema save hone se pehle ham password encrypt kr denge
+// Arrow function ke sath this ka refernce nhi aata hai
+// Userschema save hone se pehle ham password encrypt kr denge
 userSchema.pre("save", async function (next) {
   if(this.isModified("password")) {
     const encryptedPassword = await bcrypt.hash(this.password, 10);
+    this.password = encryptedPassword;
     next();
   }
 }) 
@@ -65,7 +66,7 @@ userSchema.pre("save", async function (next) {
 //Custom methods jo har User ke pass honge
 userSchema.methods.isPasswordCorrect = async function (password) {
   return await bcrypt.compare(password, this.password);
-}
+};
 
 // jwt is "Bearer" token
 userSchema.methods.generateAccessToken = function () {
