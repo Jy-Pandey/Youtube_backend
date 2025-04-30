@@ -24,8 +24,7 @@ const uploadOnCloudinary = async (localFilePath) => {
   } catch (error) {
     console.log("Error while saving on cloudinary !!", error);
     fs.unlinkSync(localFilePath); //remove the locally saved file
-  
-    
+
   }
 }
 
