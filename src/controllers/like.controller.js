@@ -3,6 +3,9 @@ import { Like } from "../models/like.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { Video } from "../models/video.model.js";
+import { Comment } from "../models/comment.model.js";
+import {Tweet} from "../models/tweet.model.js";
 
 const toggleVideoLike = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
@@ -15,6 +18,11 @@ const toggleVideoLike = asyncHandler(async (req, res) => {
 
   if(!isValidObjectId(videoId)) {
     throw new ApiError(400, "Invalid videoId")
+  }
+
+  const video = await Video.findById(videoId);
+  if(!video) {
+    throw new ApiError(404, "Video does not exist")
   }
   // return first matched document
   const isLiked = await Like.findOne({
@@ -50,6 +58,10 @@ const toggleCommentLike = asyncHandler(async (req, res) => {
 
   if (!isValidObjectId(commentId)) {
     throw new ApiError(400, "Invalid commentId");
+  }
+  const comment = await Comment.findById(commentId);
+  if (!comment) {
+    throw new ApiError(404, "Comment does not exist");
   }
   // return first matched document
   const isLiked = await Like.findOne({
@@ -87,6 +99,10 @@ const toggleTweetLike = asyncHandler(async (req, res) => {
 
   if (!isValidObjectId(tweetId)) {
     throw new ApiError(400, "Invalid tweetId");
+  }
+  const tweet = await Tweet.findById(tweetId);
+  if (!tweet) {
+    throw new ApiError(404, "Tweet does not exist");
   }
   // return first matched document
   const isLiked = await Like.findOne({
