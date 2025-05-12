@@ -1,7 +1,7 @@
 import mongoose, { isValidObjectId } from "mongoose";
 import { Video } from "../models/video.model.js";
-import { Like } from "../models/like.model.js"
-import { Comment } from "../models/comment.model.js"
+import { Like } from "../models/like.model.js";
+import { Comment } from "../models/comment.model.js";
 import { User } from "../models/user.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
@@ -12,6 +12,72 @@ import { v2 as cloudinary } from "cloudinary";
 const getAllVideos = asyncHandler(async (req, res) => {
   const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query;
   // -TODO: get all videos based on query, sort, pagination
+  // hame ye jo query word aayega find krne ke liye hamne title aur description par search index
+  // lagaya hai jo efficiently find karega.
+  // us index ke basis par search kar denge
+  // available documents ko sort kar denge in given sortBy order me
+
+  const pipeline = [];
+  if (query) {
+    pipeline.push({
+      $search: {
+        index: "search-videos",
+        text: {
+          query: query,
+          path: ["title", "description"],
+        },
+      },
+    });
+  }
+  // fetch videos only that are set isPublished as true
+  pipeline.push({ $match: { isPublished: true } });
+
+  //sortBy can be views, createdAt, duration
+  //sortType can be ascending(-1) or descending(1)
+  if (sortBy && sortType) {
+    pipeline.push({
+      $sort: {
+        [sortBy]: sortType === "asc" ? 1: -1,
+        // views : -1
+      },
+    });
+  } 
+  else {
+    pipeline.push({ $sort: { createdAt: -1 } });
+  }
+
+  // Add owner details
+  pipeline.push({
+    $lookup: {
+      from: "users",
+      localField: "owner",
+      foreignField: "_id",
+      as: "owner",
+      pipeline: [
+        {
+          $project: {
+            username: 1,
+            email: 1,
+            avatar: 1,
+          },
+        },
+      ],
+    },
+  });
+
+  // const videoAggregate = await Video.aggregate(pipeline);
+
+  // Pagination : “Large data ko chhote chhote pages mein divide karna.”
+  // page 1 , limit 10 .. first page me 10 docs aayenge
+  const options = {
+    page : parseInt(page),
+    limit : parseInt(limit)
+  };
+
+  const video = await Video.aggregatePaginate(pipeline, options);
+  return res
+    .status(200)
+    .json(new ApiResponse(200, video, "Videos fetched successfully"));
 });
 
 const publishAVideo = asyncHandler(async (req, res) => {
@@ -56,8 +122,8 @@ const publishAVideo = asyncHandler(async (req, res) => {
       public_id: videoFile.public_id,
     },
     thumbnail: {
-      url : thumbnail.url,
-      public_id : thumbnail.public_id
+      url: thumbnail.url,
+      public_id: thumbnail.public_id,
     },
     title,
     description,
@@ -135,7 +201,7 @@ const getVideoById = asyncHandler(async (req, res) => {
             $project: {
               content: 1,
               owner: 1,
-              commentlikes : 1,
+              commentlikes: 1,
             },
           },
         ],
@@ -312,7 +378,7 @@ const updateVideo = asyncHandler(async (req, res) => {
 const deleteVideo = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
   // -TODO: delete video
-  if(!isValidObjectId(videoId)) {
+  if (!isValidObjectId(videoId)) {
     throw new ApiError(400, "Invalid videoId");
   }
 
@@ -322,7 +388,7 @@ const deleteVideo = asyncHandler(async (req, res) => {
   }
 
   // If you are owner then only you can delete
-  if(video.owner.toString() !== req.user?._id.toString()) {
+  if (video.owner.toString() !== req.user?._id.toString()) {
     throw new ApiError(
       400,
       "You can't delete this video as you are not the owner"
@@ -335,26 +401,26 @@ const deleteVideo = asyncHandler(async (req, res) => {
   }
 
   // delete thumbnail and video from cloudinary
-  await cloudinary.uploader.destroy(video.videoFile.public_id, {resource_type : "video"});
+  await cloudinary.uploader.destroy(video.videoFile.public_id, {
+    resource_type: "video",
+  });
   await cloudinary.uploader.destroy(video.thumbnail.public_id);
 
   // delete all likes of this video
   // {likedBy : User, video : videoId}, {...}, {...} .. to sare aise doc delete karo jisme videoId ye ho
   // Model.deleteMany(filter);
   await Like.deleteMany({
-    video : videoId
-  })
+    video: videoId,
+  });
 
   // delete all comments of video
   await Comment.deleteMany({
-    video : videoId
-  })
+    video: videoId,
+  });
 
   return res
-  .status(200)
-  .json(
-    new ApiResponse(200, {}, "Video deleted successfully")
-  )
+    .status(200)
+    .json(new ApiResponse(200, {}, "Video deleted successfully"));
 });
 
 const togglePublishStatus = asyncHandler(async (req, res) => {

@@ -45,6 +45,7 @@ const videoSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Mongoose plugin ek reusable function hota hai jo tumhare schema ya model ke andar custom methods, properties, ya middleware inject karta hai — taaki tumhara code DRY (Don't Repeat Yourself) ho jaaye.
+// Mongoose plugin ek reusable function hota hai jo tumhare schema ya model ke andar custom methods
+// , properties, ya middleware inject karta hai — taaki tumhara code DRY (Don't Repeat Yourself) ho jaaye.
 videoSchema.plugin(mongooseAggregatePaginate);
 export const Video = mongoose.model("Video", videoSchema);
