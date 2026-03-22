@@ -88,18 +88,24 @@ const getUserTweets = asyncHandler(async (req, res) => {
     },
     {
       $sort: {
-        createdAt: -1,
+        from: "likes",
+        let: { tweetId: "$_id" },
+        pipeline: [
+          { $match: { $expr: { $eq: ["$tweet", "$$tweetId"] } } },
+          {
+            $lookup: {
+              from: "users",
+              localField: "likedBy",
+              foreignField: "_id",
+              as: "likedUser",
+            },
+          },
+          { $unwind: { path: "$likedUser", preserveNullAndEmptyArrays: true } },
+          { $match: { "likedUser.isSuspicious": { $ne: true } } },
+          { $project: { likedBy: 1 } },
+        ],
       },
-    },
-    {
-      $project: {
-        content: 1,
-        ownerDetails: 1,
-        likesCount: 1,
-        createdAt: 1,
-        isLiked: 1,
-      },
-    },
+    }
   ]);
 
   return res

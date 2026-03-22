@@ -1,10 +1,11 @@
-import mongoose, {isValidObjectId} from "mongoose";
+import mongoose, { isValidObjectId } from "mongoose";
 import { Comment } from "../models/comment.model.js";
-import {Video} from "../models/video.model.js"
-import {Like} from "../models/like.model.js"
+import { Video } from "../models/video.model.js";
+import { Like } from "../models/like.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { logActivity } from "../utils/fakeEngagement.js";
 
 const getVideoComments = asyncHandler(async (req, res) => {
   //-TODO: get all comments for a video
@@ -13,8 +14,8 @@ const getVideoComments = asyncHandler(async (req, res) => {
   const video = await Video.findById(videoId);
 
   console.log("Get all comments");
-  
-  if(!video) {
+
+  if (!video) {
     throw new ApiError(404, "Video not found");
   }
   const commentAggregate = [
@@ -24,56 +25,70 @@ const getVideoComments = asyncHandler(async (req, res) => {
     {
       $lookup: {
         from: "likes",
-        localField: "_id",
-        foreignField: "comment",
+        let: { commentId: "$_id" },
+        pipeline: [
+          { $match: { $expr: { $eq: ["$comment", "$$commentId"] } } },
+          {
+            $lookup: {
+              from: "users",
+              localField: "likedBy",
+              foreignField: "_id",
+              as: "likedUser",
+            },
+          },
+          { $unwind: { path: "$likedUser", preserveNullAndEmptyArrays: true } },
+          { $match: { "likedUser.isSuspicious": { $ne: true } } },
+          { $project: { likedBy: 1, createdAt: 1 } },
+        ],
         as: "likes",
       },
     },
     {
       $addFields: {
         likes: { $size: "$likes" },
-        isLiked : {
-          $cond : {
-            if : {$in : [req.user?._id, "$likes.likedBy"]},
-            then : true,
-            else : false
-          }
-        }
+        isLiked: {
+          $cond: {
+            if: { $in: [req.user?._id, "$likes.likedBy"] },
+            then: true,
+            else: false,
+          },
+        },
       },
     },
     {
       $project: {
         content: 1,
         likes: 1,
-        isLiked : 1
+        isLiked: 1,
       },
     },
   ];
 
   const options = {
-    page : parseInt(page),
-    limit : parseInt(limit)
-  }
-  const commentsArr = await Comment.aggregatePaginate(commentAggregate, options);
+    page: parseInt(page),
+    limit: parseInt(limit),
+  };
+  const commentsArr = await Comment.aggregatePaginate(
+    commentAggregate,
+    options
+  );
 
   return res
-  .status(200)
-  .json(
-    new ApiResponse(200, commentsArr, "all comments fetched succefully")
-  )
+    .status(200)
+    .json(new ApiResponse(200, commentsArr, "all comments fetched succefully"));
 });
 
 const addComment = asyncHandler(async (req, res) => {
   // -TODO: add a comment to a video
   const { videoId } = req.params;
-  const {content} = req.body;
+  const { content } = req.body;
 
-  if(content.trim() === "") {
+  if (content.trim() === "") {
     throw new ApiError(401, "Content is required");
   }
 
-  if(!isValidObjectId(videoId)) {
-    throw new ApiError(400, "Invalid videoId")
+  if (!isValidObjectId(videoId)) {
+    throw new ApiError(400, "Invalid videoId");
   }
 
   const video = await Video.findById(videoId);
@@ -83,20 +98,19 @@ const addComment = asyncHandler(async (req, res) => {
 
   const comment = await Comment.create({
     content,
-    video : videoId,
-    owner : req.user?._id
-  })
+    video: videoId,
+    owner: req.user?._id,
+  });
   if (!comment) {
     throw new ApiError(500, "Error in uploading comments");
   }
 
+  // log comment activity (used for fake engagement detection)
+  await logActivity(req.user?._id, "comment", videoId);
+
   return res
-  .status(200)
-  .json(
-    new ApiResponse(200, comment, "Comment addedd successfully")
-  )
-
-
+    .status(200)
+    .json(new ApiResponse(200, comment, "Comment addedd successfully"));
 });
 
 const updateComment = asyncHandler(async (req, res) => {
@@ -114,19 +128,19 @@ const updateComment = asyncHandler(async (req, res) => {
   const comment = await Comment.findById(commentId);
 
   // If you are owner of this comment then only u can update
-  if(comment?.owner.toString() !== req.user?._id.toString()) {
+  if (comment?.owner.toString() !== req.user?._id.toString()) {
     throw new ApiError(404, "You cant update as you are not the owner");
   }
 
   const updatedComment = await Comment.findByIdAndUpdate(
     comment?._id,
     {
-      $set : {
-        content
-      }
+      $set: {
+        content,
+      },
     },
-    {new : true}
-  )
+    { new: true }
+  );
   if (!updatedComment) {
     throw new ApiError(500, "Failed to edit comment");
   }

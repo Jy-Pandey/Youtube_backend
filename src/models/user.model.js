@@ -47,6 +47,14 @@ const userSchema = new Schema(
     refreshToken: {
       type: String,
     },
+    isSuspicious: {
+      type: Boolean,
+      default: false,
+    },
+    suspiciousScore: {
+      type: Number,
+      default: 0,
+    },
   },
   {
     timestamps: true,
@@ -56,12 +64,12 @@ const userSchema = new Schema(
 // Arrow function ke sath this ka refernce nhi aata hai
 // Userschema save hone se pehle ham password encrypt kr denge
 userSchema.pre("save", async function (next) {
-  if(this.isModified("password")) {
+  if (this.isModified("password")) {
     const encryptedPassword = await bcrypt.hash(this.password, 10);
     this.password = encryptedPassword;
     next();
   }
-}) 
+});
 
 //Custom methods jo har User ke pass honge
 userSchema.methods.isPasswordCorrect = async function (password) {
@@ -73,20 +81,19 @@ userSchema.methods.generateAccessToken = function () {
   return jwt.sign(
     {
       _id: this._id,
-      username : this.username,
-      email : this.email,
-      fullName : this.fullName,
+      username: this.username,
+      email: this.email,
+      fullName: this.fullName,
     },
     process.env.ACCESS_TOKEN_SECRET,
-    { expiresIn: process.env.ACCESS_TOKEN_EXPIRY}
+    { expiresIn: process.env.ACCESS_TOKEN_EXPIRY }
   );
-}
+};
 
 userSchema.methods.generateRefreshToken = function () {
   return jwt.sign(
     {
       _id: this._id,
-      
     },
     process.env.REFRESH_TOKEN_SECRET,
     { expiresIn: process.env.REFRESH_TOKEN_EXPIRY }

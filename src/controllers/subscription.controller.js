@@ -4,6 +4,7 @@ import { Subscription } from "../models/subscription.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { logActivity } from "../utils/fakeEngagement.js";
 
 const toggleSubscription = asyncHandler(async (req, res) => {
   const { channelId } = req.params;
@@ -28,6 +29,9 @@ const toggleSubscription = asyncHandler(async (req, res) => {
   if (isSubscribed) {
     await Subscription.findByIdAndDelete(isSubscribed?._id);
 
+    // log unsubscribe activity
+    await logActivity(req.user?._id, "unsubscribe", channelId);
+
     return res
       .status(200)
       .json(
@@ -40,6 +44,8 @@ const toggleSubscription = asyncHandler(async (req, res) => {
     channel: channelId,
     subscriber: req.user?._id,
   });
+  // log subscribe activity
+  await logActivity(req.user?._id, "subscribe", channelId);
   return res
     .status(200)
     .json(new ApiResponse(200, newSubscriber, "subscribed successfully"));
@@ -71,6 +77,7 @@ const getUserChannelSubscribers = asyncHandler(async (req, res) => {
         foreignField: "_id",
         as: "subscriber",
         pipeline: [
+          { $match: { isSuspicious: { $ne: true } } },
           {
             $project: {
               username: 1,
@@ -96,7 +103,11 @@ const getUserChannelSubscribers = asyncHandler(async (req, res) => {
     .json(
       new ApiResponse(
         200,
-        {totalSubscribers : channelSubscribers.length, subscribers : channelSubscribers, isSubscribed, },
+        {
+          totalSubscribers: channelSubscribers.length,
+          subscribers: channelSubscribers,
+          isSubscribed,
+        },
         "Subscribers fetched"
       )
     );
@@ -168,7 +179,10 @@ const getSubscribedChannels = asyncHandler(async (req, res) => {
     .json(
       new ApiResponse(
         200,
-        {subscribedChannelsCount : subscribedChannels.length ,subscribedChannels},
+        {
+          subscribedChannelsCount: subscribedChannels.length,
+          subscribedChannels,
+        },
         "subscribed channels fetched successfully"
       )
     );

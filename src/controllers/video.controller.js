@@ -37,12 +37,11 @@ const getAllVideos = asyncHandler(async (req, res) => {
   if (sortBy && sortType) {
     pipeline.push({
       $sort: {
-        [sortBy]: sortType === "asc" ? 1: -1,
+        [sortBy]: sortType === "asc" ? 1 : -1,
         // views : -1
       },
     });
-  } 
-  else {
+  } else {
     pipeline.push({ $sort: { createdAt: -1 } });
   }
 
@@ -70,8 +69,8 @@ const getAllVideos = asyncHandler(async (req, res) => {
   // Pagination : “Large data ko chhote chhote pages mein divide karna.”
   // page 1 , limit 10 .. first page me 10 docs aayenge
   const options = {
-    page : parseInt(page),
-    limit : parseInt(limit)
+    page: parseInt(page),
+    limit: parseInt(limit),
   };
 
   const video = await Video.aggregatePaginate(pipeline, options);
@@ -152,8 +151,21 @@ const getVideoById = asyncHandler(async (req, res) => {
     {
       $lookup: {
         from: "likes",
-        localField: "_id",
-        foreignField: "video",
+        let: { videoId: "$_id" },
+        pipeline: [
+          { $match: { $expr: { $eq: ["$video", "$$videoId"] } } },
+          {
+            $lookup: {
+              from: "users",
+              localField: "likedBy",
+              foreignField: "_id",
+              as: "likedUser",
+            },
+          },
+          { $unwind: { path: "$likedUser", preserveNullAndEmptyArrays: true } },
+          { $match: { "likedUser.isSuspicious": { $ne: true } } },
+          { $project: { likedBy: 1, createdAt: 1 } },
+        ],
         as: "likes",
       },
     },
@@ -186,8 +198,26 @@ const getVideoById = asyncHandler(async (req, res) => {
           {
             $lookup: {
               from: "likes",
-              localField: "_id",
-              foreignField: "comment",
+              let: { commentId: "$_id" },
+              pipeline: [
+                { $match: { $expr: { $eq: ["$comment", "$$commentId"] } } },
+                {
+                  $lookup: {
+                    from: "users",
+                    localField: "likedBy",
+                    foreignField: "_id",
+                    as: "likedUser",
+                  },
+                },
+                {
+                  $unwind: {
+                    path: "$likedUser",
+                    preserveNullAndEmptyArrays: true,
+                  },
+                },
+                { $match: { "likedUser.isSuspicious": { $ne: true } } },
+                { $project: { likedBy: 1 } },
+              ],
               as: "commentLikes",
             },
           },
